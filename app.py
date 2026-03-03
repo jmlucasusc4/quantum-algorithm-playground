@@ -60,13 +60,15 @@ elif menu == "Grover’s Search":
     if len(target) != n or not all(c in "01" for c in target):
         st.error(f"Target must be exactly {n} bits (0s and 1s).")
     else:
+        # Create oracle
         bit_expr = " & ".join([f"{'' if b=='1' else '~'}x{i}" for i, b in enumerate(target[::-1])])
         oracle = PhaseOracle(bit_expr)
         
-        grover = Grover()
+        # FIX: Explicitly set iterations to 1 to avoid Qiskit's internal NoneType error
+        grover = Grover(iterations=1)
         circuit = grover.construct_circuit(oracle)
         
-        # We use a copy for measurement to keep the original circuit clean
+        # Use a copy for measurement
         meas_circuit = circuit.copy()
         meas_circuit.measure_all()
         
@@ -103,7 +105,7 @@ elif menu == "Bloch Sphere Visualization":
     qc = QuantumCircuit(1)
     qc.ry(theta, 0)
     
-    # FIX: Tell the simulator to save the statevector before any measurement happens
+    # FIX: Tell the simulator to save the statevector BEFORE any measurement happens
     qc.save_statevector()
     
     backend = AerSimulator()
@@ -128,3 +130,40 @@ elif menu == "Shor’s Algorithm + RSA Crack":
         else:
             st.error("Number is prime or too complex for this demo.")
 
+# ---------------- QUANTUM TIC-TAC-TOE ----------------
+elif menu == "Quantum Tic-Tac-Toe":
+    st.header("🌀 Quantum Tic-Tac-Toe")
+    if "board" not in st.session_state:
+        st.session_state.board = np.full((3, 3), None)
+        st.session_state.player = "X"
+
+    def reset_game():
+        st.session_state.board = np.full((3, 3), None)
+        st.session_state.player = "X"
+
+    st.sidebar.button("Reset Game", on_click=reset_game)
+    
+    cols = st.columns(3)
+    for i in range(3):
+        for j in range(3):
+            label = st.session_state.board[i, j] if st.session_state.board[i, j] else "-"
+            if cols[j].button(label, key=f"cell-{i}-{j}"):
+                if st.session_state.board[i, j] is None:
+                    outcome = "X" if np.random.random() > 0.5 else "O"
+                    st.session_state.board[i, j] = outcome
+                    st.session_state.player = "O" if st.session_state.player == "X" else "X"
+                    st.rerun()
+
+# ---------------- QUANTUM RISK AUDITOR ----------------
+elif menu == "Quantum Risk Auditor 🧪":
+    st.header("Quantum Risk Auditor 🧪")
+    encryption = st.selectbox("Select your encryption:", ["RSA-2048", "AES-256", "Kyber-768"])
+    if st.button("Run Audit"):
+        risk_scores = {"RSA-2048": 95, "AES-256": 20, "Kyber-768": 5}
+        score = risk_scores[encryption]
+        st.progress(score/100)
+        st.warning(f"Quantum Vulnerability Score: {score}/100")
+        if score > 50:
+            st.error("⚠️ HIGH RISK: Migrate to Post-Quantum Cryptography (PQC) immediately.")
+        else:
+            st.success("✅ LOW RISK: This algorithm is currently Quantum-Resistant.")
