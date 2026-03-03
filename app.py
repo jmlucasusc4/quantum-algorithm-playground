@@ -25,8 +25,9 @@ menu = st.sidebar.selectbox("Choose Module", [
 # ---------------- UTIL ----------------
 def run_sim(qc, shots=1024):
     backend = AerSimulator()
-    qc.measure_all()
-    job = backend.run(qc, shots=shots)
+    qc_copy = qc.copy()
+    qc_copy.measure_all()
+    job = backend.run(qc_copy, shots=shots)
     return job.result().get_counts()
 
 # ---------------- SUPERPOSITION ----------------
@@ -59,17 +60,18 @@ elif menu == "Grover’s Search":
     if len(target) != n or not all(c in "01" for c in target):
         st.error(f"Target must be exactly {n} bits (0s and 1s).")
     else:
-        # Create oracle: Logic to flip phase of the target state
-        # Reverse bit order for Qiskit convention (little-endian)
         bit_expr = " & ".join([f"{'' if b=='1' else '~'}x{i}" for i, b in enumerate(target[::-1])])
         oracle = PhaseOracle(bit_expr)
         
         grover = Grover()
         circuit = grover.construct_circuit(oracle)
-        circuit.measure_all()
+        
+        # We use a copy for measurement to keep the original circuit clean
+        meas_circuit = circuit.copy()
+        meas_circuit.measure_all()
         
         backend = AerSimulator()
-        result = backend.run(circuit, shots=1024).result()
+        result = backend.run(meas_circuit, shots=1024).result()
         counts = result.get_counts()
         
         col1, col2 = st.columns(2)
@@ -97,18 +99,26 @@ elif menu == "Classical vs Quantum Speed":
 elif menu == "Bloch Sphere Visualization":
     st.header("Bloch Sphere — State Rotation 🌐")
     theta = st.slider("Rotation Angle (θ)", 0.0, np.pi, np.pi/2)
+    
     qc = QuantumCircuit(1)
     qc.ry(theta, 0)
     
-    backend = AerSimulator(method="statevector")
+    # FIX: Tell the simulator to save the statevector before any measurement happens
+    qc.save_statevector()
+    
+    backend = AerSimulator()
     result = backend.run(qc).result()
     state = result.get_statevector()
-    st.pyplot(plot_bloch_multivector(state))
+    
+    # Render Bloch Multivector
+    fig = plot_bloch_multivector(state)
+    st.pyplot(fig)
+    st.write("Mathematical Statevector Representation:")
+    st.code(state)
 
 # ---------------- SHOR + RSA DEMO ----------------
 elif menu == "Shor’s Algorithm + RSA Crack":
     st.header("Shor’s Algorithm — RSA Breaking Demo 🔐")
-    
     N = st.number_input("Composite Number (RSA Modulus)", min_value=15, max_value=999, value=21)
     if st.button("Run Quantum Attack Simulation"):
         factors = [(i, N//i) for i in range(2, int(np.sqrt(N))+1) if N % i == 0]
@@ -118,42 +128,3 @@ elif menu == "Shor’s Algorithm + RSA Crack":
         else:
             st.error("Number is prime or too complex for this demo.")
 
-# ---------------- QUANTUM TIC-TAC-TOE ----------------
-elif menu == "Quantum Tic-Tac-Toe":
-    st.header("🌀 Quantum Tic-Tac-Toe")
-    if "board" not in st.session_state:
-        st.session_state.board = np.full((3, 3), None)
-        st.session_state.player = "X"
-
-    def reset_game():
-        st.session_state.board = np.full((3, 3), None)
-        st.session_state.player = "X"
-
-    st.sidebar.button("Reset Game", on_click=reset_game)
-    
-    # Simple Logic for Quantum-Style Play
-    cols = st.columns(3)
-    for i in range(3):
-        for j in range(3):
-            label = st.session_state.board[i, j] if st.session_state.board[i, j] else "-"
-            if cols[j].button(label, key=f"cell-{i}-{j}"):
-                if st.session_state.board[i, j] is None:
-                    # Simulation of "Quantum Collapse"
-                    outcome = "X" if np.random.random() > 0.5 else "O"
-                    st.session_state.board[i, j] = outcome
-                    st.session_state.player = "O" if st.session_state.player == "X" else "X"
-                    st.rerun()
-
-# ---------------- QUANTUM RISK AUDITOR ----------------
-elif menu == "Quantum Risk Auditor 🧪":
-    st.header("Quantum Risk Auditor 🧪")
-    encryption = st.selectbox("Select your encryption:", ["RSA-2048", "AES-256", "Kyber-768"])
-    if st.button("Run Audit"):
-        risk_scores = {"RSA-2048": 95, "AES-256": 20, "Kyber-768": 5}
-        score = risk_scores[encryption]
-        st.progress(score/100)
-        st.warning(f"Quantum Vulnerability Score: {score}/100")
-        if score > 50:
-            st.error("⚠️ HIGH RISK: Migrate to Post-Quantum Cryptography (PQC) immediately.")
-        else:
-            st.success("✅ LOW RISK: This algorithm is currently Quantum-Resistant.")
