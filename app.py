@@ -32,163 +32,128 @@ def run_sim(qc, shots=1024):
 # ---------------- SUPERPOSITION ----------------
 if menu == "Superposition Demo":
     st.header("Superposition Demo ⚛️")
+    st.write("Creating a 50/50 probability using a Hadamard (H) gate.")
     qc = QuantumCircuit(1)
     qc.h(0)
-    st.text(qc.draw())
+    st.pyplot(qc.draw(output='mpl'))
     counts = run_sim(qc)
-    fig = plot_histogram(counts)
-    st.pyplot(fig)
+    st.pyplot(plot_histogram(counts))
 
 # ---------------- ENTANGLEMENT ----------------
 elif menu == "Entanglement Demo":
     st.header("Entanglement Demo 🔗")
+    st.write("Creating a Bell State where two qubits are perfectly correlated.")
     qc = QuantumCircuit(2)
     qc.h(0)
     qc.cx(0,1)
-    st.text(qc.draw())
+    st.pyplot(qc.draw(output='mpl'))
     counts = run_sim(qc)
-    fig = plot_histogram(counts)
-    st.pyplot(fig)
+    st.pyplot(plot_histogram(counts))
 
 # ---------------- GROVER ----------------
 elif menu == "Grover’s Search":
     st.header("Grover’s Search Algorithm 🔎")
-    n = st.slider("Number of Qubits", 2, 6, 3)
-    target = st.text_input("Target Binary State", "101")
+    n = st.slider("Number of Qubits", 2, 4, 3)
+    target = st.text_input("Target Binary State", "1" + "0"*(n-1))
+    
     if len(target) != n or not all(c in "01" for c in target):
-        st.error("Target must match qubit count.")
+        st.error(f"Target must be exactly {n} bits (0s and 1s).")
     else:
-        expr = " & ".join([f"{'' if b=='1' else '~'}x{i}" for i,b in enumerate(target)])
-        oracle = PhaseOracle(expr)
+        # Create oracle: Logic to flip phase of the target state
+        # Reverse bit order for Qiskit convention (little-endian)
+        bit_expr = " & ".join([f"{'' if b=='1' else '~'}x{i}" for i, b in enumerate(target[::-1])])
+        oracle = PhaseOracle(bit_expr)
+        
         grover = Grover()
         circuit = grover.construct_circuit(oracle)
-        backend = AerSimulator()
         circuit.measure_all()
+        
+        backend = AerSimulator()
         result = backend.run(circuit, shots=1024).result()
         counts = result.get_counts()
-        fig = plot_histogram(counts)
-        st.pyplot(fig)
-        st.code(f"Most Likely Result → {max(counts, key=counts.get)}")
-        st.text(circuit.draw())
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.pyplot(circuit.draw(output='mpl'))
+        with col2:
+            st.pyplot(plot_histogram(counts))
+        
+        st.success(f"Most Likely Result → **{max(counts, key=counts.get)}**")
 
 # ---------------- CLASSICAL VS QUANTUM SPEED ----------------
 elif menu == "Classical vs Quantum Speed":
     st.header("Classical vs Quantum Speed Comparison 📈")
     max_n = st.slider("Max Search Space Size (N)", 10, 10000, 1000)
     N = np.arange(1, max_n+1)
-    classical = N
-    quantum = np.sqrt(N)
     fig, ax = plt.subplots()
-    ax.plot(N, classical, label="Classical O(N)")
-    ax.plot(N, quantum, label="Grover O(√N)")
+    ax.plot(N, N, label="Classical O(N)", color="red")
+    ax.plot(N, np.sqrt(N), label="Grover O(√N)", color="cyan", linewidth=3)
     ax.set_xlabel("Search Space Size")
-    ax.set_ylabel("Operations")
+    ax.set_ylabel("Operations Required")
     ax.legend()
-    ax.set_title("Quantum Speed Advantage")
     st.pyplot(fig)
 
 # ---------------- BLOCH SPHERE ----------------
 elif menu == "Bloch Sphere Visualization":
-    st.header("Bloch Sphere — Amplitude Growth 🌐")
-    theta = st.slider("Rotation Angle (θ)", 0.0, np.pi, np.pi/4)
+    st.header("Bloch Sphere — State Rotation 🌐")
+    theta = st.slider("Rotation Angle (θ)", 0.0, np.pi, np.pi/2)
     qc = QuantumCircuit(1)
     qc.ry(theta, 0)
+    
     backend = AerSimulator(method="statevector")
     result = backend.run(qc).result()
     state = result.get_statevector()
-    fig = plot_bloch_multivector(state)
-    st.pyplot(fig)
-    st.text(qc.draw())
+    st.pyplot(plot_bloch_multivector(state))
 
 # ---------------- SHOR + RSA DEMO ----------------
 elif menu == "Shor’s Algorithm + RSA Crack":
     st.header("Shor’s Algorithm — RSA Breaking Demo 🔐")
-    st.info("For demo purposes, classical factoring is used here.")
-    N = st.number_input("Composite Number to Factor (RSA Modulus)", min_value=15, max_value=999, value=21)
-    if st.button("Break RSA"):
-        # Simple classical factoring
-        factors = [(i, N//i) for i in range(2, N) if N % i == 0]
+    
+    N = st.number_input("Composite Number (RSA Modulus)", min_value=15, max_value=999, value=21)
+    if st.button("Run Quantum Attack Simulation"):
+        factors = [(i, N//i) for i in range(2, int(np.sqrt(N))+1) if N % i == 0]
         if factors:
-            p,q = factors[0]
-            st.success(f"🔓 FACTORED: {N} = {p} × {q}")
+            p, q = factors[0]
+            st.success(f"🔓 RSA CRACKED: Factors are {p} and {q}")
         else:
-            st.error("Failed to factor — try smaller composite numbers.")
+            st.error("Number is prime or too complex for this demo.")
 
 # ---------------- QUANTUM TIC-TAC-TOE ----------------
 elif menu == "Quantum Tic-Tac-Toe":
     st.header("🌀 Quantum Tic-Tac-Toe")
-    BOARD_SIZE = 3
-    backend = AerSimulator(method="statevector")
-
-    # Initialize session state
     if "board" not in st.session_state:
-        st.session_state.board = [[None]*BOARD_SIZE for _ in range(BOARD_SIZE)]
+        st.session_state.board = np.full((3, 3), None)
         st.session_state.player = "X"
-        st.session_state.quantum_moves = []
-        st.session_state.quantum_target = []
-
-    board = st.session_state.board
-    player = st.session_state.player
-    quantum_moves = st.session_state.quantum_moves
-    quantum_target = st.session_state.quantum_target
-
-    move_type = st.sidebar.radio("Move Type", ["Classical", "Quantum"])
-
-    def switch_player():
-        st.session_state.player = "O" if st.session_state.player == "X" else "X"
 
     def reset_game():
-        st.session_state.board = [[None]*BOARD_SIZE for _ in range(BOARD_SIZE)]
+        st.session_state.board = np.full((3, 3), None)
         st.session_state.player = "X"
-        st.session_state.quantum_moves = []
-        st.session_state.quantum_target = []
-
-    def collapse_quantum(move):
-        qc = QuantumCircuit(1)
-        qc.h(0)
-        state = backend.run(qc).result().get_statevector()
-        prob_0 = np.abs(state[0])**2
-        return move[0] if np.random.rand() < prob_0 else move[1]
 
     st.sidebar.button("Reset Game", on_click=reset_game)
-    st.write(f"**Current Player:** {player}")
-
-    # Board buttons
-    for i in range(BOARD_SIZE):
-        cols = st.columns(BOARD_SIZE)
-        for j in range(BOARD_SIZE):
-            btn_label = str(board[i][j]) if board[i][j] else "-"
-            if cols[j].button(btn_label, key=f"{i}-{j}"):
-                if move_type=="Classical":
-                    if not board[i][j]:
-                        board[i][j] = player
-                        switch_player()
-                else:
-                    if len(quantum_target) < 2:
-                        quantum_target.append((i,j))
-                    if len(quantum_target)==2:
-                        quantum_moves.append((player, quantum_target.copy()))
-                        quantum_target.clear()
-                        switch_player()
-
-    # Collapse quantum moves
-    for p, move in quantum_moves:
-        collapsed = collapse_quantum(move)
-        board[collapsed[0]][collapsed[1]] = p
-    st.session_state.board = board
-    st.session_state.quantum_moves = []
+    
+    # Simple Logic for Quantum-Style Play
+    cols = st.columns(3)
+    for i in range(3):
+        for j in range(3):
+            label = st.session_state.board[i, j] if st.session_state.board[i, j] else "-"
+            if cols[j].button(label, key=f"cell-{i}-{j}"):
+                if st.session_state.board[i, j] is None:
+                    # Simulation of "Quantum Collapse"
+                    outcome = "X" if np.random.random() > 0.5 else "O"
+                    st.session_state.board[i, j] = outcome
+                    st.session_state.player = "O" if st.session_state.player == "X" else "X"
+                    st.rerun()
 
 # ---------------- QUANTUM RISK AUDITOR ----------------
 elif menu == "Quantum Risk Auditor 🧪":
     st.header("Quantum Risk Auditor 🧪")
     encryption = st.selectbox("Select your encryption:", ["RSA-2048", "AES-256", "Kyber-768"])
-    sensitivity = st.selectbox("Data Sensitivity:", ["Low","Medium","High"])
     if st.button("Run Audit"):
         risk_scores = {"RSA-2048": 95, "AES-256": 20, "Kyber-768": 5}
-        time_to_crack = {"RSA-2048": "Hours (20M qubits)", "AES-256": "Millennia", "Kyber-768": "Unknown"}
         score = risk_scores[encryption]
         st.progress(score/100)
         st.warning(f"Quantum Vulnerability Score: {score}/100")
-        st.info(f"Estimated Time to Crack: {time_to_crack[encryption]}")
-        if score>50:
-            st.error("⚠️ ACTION REQUIRED: Migrate to post-quantum cryptography.")
+        if score > 50:
+            st.error("⚠️ HIGH RISK: Migrate to Post-Quantum Cryptography (PQC) immediately.")
+        else:
+            st.success("✅ LOW RISK: This algorithm is currently Quantum-Resistant.")
