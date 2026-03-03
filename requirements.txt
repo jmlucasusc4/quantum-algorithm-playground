@@ -3,6 +3,4 @@ numpy
 matplotlib
 qiskit
 qiskit-aer
-qiskit-algorithmsstreamlit
-sympy
-
+qiskit-algorithms
