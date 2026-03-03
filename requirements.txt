@@ -4,3 +4,5 @@ matplotlib
 qiskit
 qiskit-aer
 qiskit-algorithms
+pylatexenc
+ipywidgets
