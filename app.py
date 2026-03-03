@@ -27,7 +27,6 @@ menu = st.sidebar.selectbox("Choose Module", [
 
 # --- Utility Functions ---
 def run_sim(qc, shots=1024):
-    """Standard simulation utility for counts."""
     backend = AerSimulator()
     qc_copy = qc.copy()
     qc_copy.measure_all()
@@ -58,7 +57,6 @@ elif menu == "Entanglement Demo":
 # ---------------- GROVER'S SEARCH ----------------
 elif menu == "Grover’s Search":
     st.header("Grover’s Search Algorithm 🔎")
-    st.info("Quantum speedup for unstructured database searching.")
     n = st.slider("Number of Qubits", 2, 4, 3)
     target = st.text_input("Target Binary State", "1" + "0"*(n-1))
     
@@ -67,8 +65,6 @@ elif menu == "Grover’s Search":
     else:
         bit_expr = " & ".join([f"{'' if b=='1' else '~'}x{i}" for i, b in enumerate(target[::-1])])
         oracle = PhaseOracle(bit_expr)
-        
-        # Explicit iterations=1 to avoid Qiskit NoneType error
         grover = Grover(iterations=1)
         circuit = grover.construct_circuit(oracle)
         
@@ -84,25 +80,21 @@ elif menu == "Grover’s Search":
 # ---------------- BB84 PROTOCOL (QKD) ----------------
 elif menu == "BB84 Protocol (QKD)":
     st.header("🔐 BB84 Quantum Key Distribution")
-    st.write("Alice sends a qubit; Bob measures it. If Eve eavesdrops, the 'Collapse' alerts them.")
     eve_present = st.checkbox("Enable Eavesdropper (Eve)")
     
-    # Alice's choice
     alice_bit = np.random.randint(2)
-    alice_basis = np.random.randint(2) # 0: Z, 1: X
+    alice_basis = np.random.randint(2)
     
     qc = QuantumCircuit(1, 1)
     if alice_bit == 1: qc.x(0)
     if alice_basis == 1: qc.h(0) 
     
     if eve_present:
-        # Eve intervenes
         eve_basis = np.random.randint(2)
         if eve_basis == 1: qc.h(0)
         qc.measure(0, 0)
         if eve_basis == 1: qc.h(0) 
 
-    # Bob measures
     bob_basis = np.random.randint(2)
     if bob_basis == 1: qc.h(0)
     qc.measure(0, 0)
@@ -118,57 +110,42 @@ elif menu == "BB84 Protocol (QKD)":
 
     if alice_basis == bob_basis:
         if alice_bit == bob_bit:
-            st.success("Key Match! No eavesdropping detected in this bit.")
+            st.success("Key Match! Secure.")
         else:
-            st.error("🚨 SECURITY ALERT: Eve detected! Basis matched but bits differ.")
+            st.error("🚨 SECURITY ALERT: Eve detected!")
     else:
-        st.warning("Basis Mismatch: This qubit is discarded.")
-    
+        st.warning("Basis Mismatch: Discarded.")
 
 # ---------------- QUANTUM TELEPORTATION ----------------
 elif menu == "Quantum Teleportation":
     st.header("🛸 Quantum Teleportation")
-    st.write("Moving a quantum state from Alice to Bob using entanglement.")
-    
     qc = QuantumCircuit(3, 3)
-    # The state to teleport (prepare Q0 in some state)
     qc.h(0); qc.t(0) 
     qc.barrier()
-    # Create entanglement between Q1 and Q2
     qc.h(1); qc.cx(1, 2)
     qc.barrier()
-    # Alice measures Q0 and Q1
     qc.cx(0, 1); qc.h(0)
     qc.measure([0,1], [0,1])
     qc.barrier()
-    # Bob applies corrections based on Alice's classical bits
     qc.cx(1, 2); qc.cz(0, 2)
-    
     st.pyplot(qc.draw(output='mpl'))
-    st.info("The math proves that Qubit 2 now holds the original state of Qubit 0.")
-    
+    st.info("State of Q0 teleported to Q2.")
 
 # ---------------- BERNSTEIN-VAZIRANI ----------------
 elif menu == "Bernstein-Vazirani":
     st.header("⚡ Bernstein-Vazirani Algorithm")
-    st.write("Finding a hidden bitstring in exactly ONE query.")
     secret = st.text_input("Hidden Bitstring", "1101")
-    
     if all(c in "01" for c in secret):
         n_bv = len(secret)
         qc = QuantumCircuit(n_bv + 1, n_bv)
         qc.x(n_bv); qc.h(range(n_bv + 1))
-        qc.barrier()
         for i, bit in enumerate(reversed(secret)):
             if bit == '1': qc.cx(i, n_bv)
-        qc.barrier()
         qc.h(range(n_bv))
         qc.measure(range(n_bv), range(n_bv))
-        
         st.pyplot(qc.draw(output='mpl'))
         counts = run_sim(qc)
-        st.success(f"Quantum computer output: **{list(counts.keys())[0]}**")
-    
+        st.success(f"Secret found: **{list(counts.keys())[0]}**")
 
 # ---------------- CLASSICAL VS QUANTUM SPEED ----------------
 elif menu == "Classical vs Quantum Speed":
@@ -178,8 +155,6 @@ elif menu == "Classical vs Quantum Speed":
     fig, ax = plt.subplots()
     ax.plot(N, N, label="Classical O(N)", color="red")
     ax.plot(N, np.sqrt(N), label="Grover O(√N)", color="cyan", linewidth=3)
-    ax.set_xlabel("Search Space Size")
-    ax.set_ylabel("Steps")
     ax.legend()
     st.pyplot(fig)
 
@@ -189,16 +164,10 @@ elif menu == "Bloch Sphere Visualization":
     theta = st.slider("Rotation Angle (θ)", 0.0, np.pi, np.pi/2)
     qc = QuantumCircuit(1)
     qc.ry(theta, 0)
-    qc.save_statevector() # Critical for AerSimulator
-    
+    qc.save_statevector()
     backend = AerSimulator()
     state = backend.run(qc).result().get_statevector()
     st.pyplot(plot_bloch_multivector(state))
-    st.write("Statevector:", state)
-    
-
-[Image of bloch sphere rotation]
-
 
 # ---------------- SHOR'S / RSA ----------------
 elif menu == "Shor’s Algorithm + RSA Crack":
@@ -208,8 +177,6 @@ elif menu == "Shor’s Algorithm + RSA Crack":
         factors = [(i, N//i) for i in range(2, int(np.sqrt(N))+1) if N % i == 0]
         if factors:
             st.success(f"🔓 RSA CRACKED: {N} = {factors[0][0]} × {factors[0][1]}")
-        else:
-            st.error("Try a composite number like 15, 21, or 35.")
 
 # ---------------- RISK AUDITOR ----------------
 elif menu == "Quantum Risk Auditor 🧪":
